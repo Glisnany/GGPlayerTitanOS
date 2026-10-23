@@ -152,6 +152,7 @@
               password: pass,
               dns: workingDns,
               mode: isM3u ? "m3u" : mode,
+              userAgent: data.user_agent || data.userAgent || "IPTVSmartersPro",
               m3uUrl: isM3u ? (workingDns || m3uUrl) : m3uUrl
             };
             setStatus("Servidor conectado! Iniciando...", "success");

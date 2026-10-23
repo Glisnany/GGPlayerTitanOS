@@ -202,6 +202,15 @@ var DnsResolver = (function () {
       var xhr = new XMLHttpRequest();
       xhr.open("GET", testUrl, true);
       xhr.timeout = timeoutMs || 3500;
+      try {
+        xhr.setRequestHeader("Accept", "*/*");
+      } catch (e) {}
+      try {
+        xhr.setRequestHeader("User-Agent", "IPTVSmartersPro");
+      } catch (e) {}
+      try {
+        xhr.setRequestHeader("X-Requested-With", "IPTVSmartersPro");
+      } catch (e) {}
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
           if (xhr.status >= 200 && xhr.status < 300) {

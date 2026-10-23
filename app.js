@@ -40,8 +40,9 @@
   var PAGE_CHANNELS = 40;
   var PAGE_GRID = 24;
   var HOME_SEARCH_RENDER_LIMIT = 120;
-  // Browsers cap concurrent connections per host at ~6; more just queues.
-  var SYNC_CONCURRENCY = 6;
+  // Keep concurrent connections low to prevent Xtream panel connection flood / 403 Forbidden
+  var SYNC_CONCURRENCY = 2;
+  var DEFAULT_USER_AGENT = "IPTVSmartersPro";
   var KEY_RATING_CACHE = "tvn_rating_cache_v1";
   var RATING_CACHE_TTL = 14 * 24 * 3600 * 1000;
   var ratingCacheData = null;
@@ -2020,6 +2021,19 @@
       var xhr = new XMLHttpRequest();
       xhr.open("GET", url, true);
       xhr.timeout = 30000;
+      var src = activeSource();
+      var ua = userAgent || (src && src.userAgent) || DEFAULT_USER_AGENT;
+      try {
+        xhr.setRequestHeader("Accept", "*/*");
+      } catch (e) {}
+      if (ua) {
+        try {
+          xhr.setRequestHeader("User-Agent", ua);
+        } catch (e) {}
+        try {
+          xhr.setRequestHeader("X-Requested-With", ua);
+        } catch (e) {}
+      }
       xhr.onreadystatechange = function () {
         if (xhr.readyState !== 4) {
           return;
@@ -2040,8 +2054,10 @@
     });
   }
 
-  function fetchJSON(url) {
-    return fetchText(url).then(function (text) {
+  function fetchJSON(url, userAgent) {
+    var src = activeSource();
+    var ua = userAgent || (src && src.userAgent) || DEFAULT_USER_AGENT;
+    return fetchText(url, ua).then(function (text) {
       try {
         return JSON.parse(text);
       } catch (error) {
@@ -2065,11 +2081,21 @@
       var xhr = new XMLHttpRequest();
       xhr.open(method, url, true);
       xhr.timeout = 15000;
+      try {
+        xhr.setRequestHeader("Accept", "*/*");
+      } catch (e) {}
+      var src = activeSource();
+      var ua = (src && src.userAgent) || DEFAULT_USER_AGENT;
+      if (ua) {
+        try {
+          xhr.setRequestHeader("User-Agent", ua);
+        } catch (e) {}
+        try {
+          xhr.setRequestHeader("X-Requested-With", ua);
+        } catch (e) {}
+      }
       var k;
       for (k in headers || {}) {
-        if (String(k).toLowerCase() === "user-agent") {
-          continue;
-        }
         try {
           xhr.setRequestHeader(k, headers[k]);
         } catch (e) {}
@@ -2611,7 +2637,7 @@
       CdnHttpLoader.prototype = Object.create(Base.prototype);
       CdnHttpLoader.prototype.constructor = CdnHttpLoader;
       CdnHttpLoader.prototype.load = function (context, config, callbacks) {
-        if (context && context.url && /^https:\/\//i.test(context.url)) {
+        if (typeof window !== "undefined" && window.location && window.location.protocol !== "https:" && context && context.url && /^https:\/\//i.test(context.url)) {
           context.url = context.url.replace(/^https:\/\//i, "http://");
         }
         Base.prototype.load.call(this, context, config, callbacks);
@@ -4983,7 +5009,22 @@
           startLevel: 0,
           capLevelToPlayerSize: true,
           maxBufferLength: 30,
-          maxMaxBufferLength: 60
+          maxMaxBufferLength: 60,
+          xhrSetup: function (xhr) {
+            try {
+              xhr.setRequestHeader("Accept", "*/*");
+            } catch (e) {}
+            var src = activeSource();
+            var ua = (src && src.userAgent) || DEFAULT_USER_AGENT;
+            if (ua) {
+              try {
+                xhr.setRequestHeader("User-Agent", ua);
+              } catch (e) {}
+              try {
+                xhr.setRequestHeader("X-Requested-With", ua);
+              } catch (e) {}
+            }
+          }
         };
         if (cdnLoader) {
           inlineHlsCfg.loader = cdnLoader;
@@ -5029,12 +5070,17 @@
         // mpegts.js fetches raw TS bytes over XHR directly from the origin server,
         // bypassing any CDN — and therefore bypassing CDN SSL issues.
         // Browsers with native MPEG-TS support use their hardware player instead.
+        var mpInlineHeaders = {
+          "Accept": "*/*",
+          "User-Agent": (activeSource() && activeSource().userAgent) || DEFAULT_USER_AGENT
+        };
         state.inline.mpegts = mpegts.createPlayer(
-          { type: "mpegts", url: url, isLive: true },
+          { type: "mpegts", url: url, isLive: true, headers: mpInlineHeaders },
           {
             enableWorker: false,
             lazyLoad: false,
-            liveBufferLatencyChasing: true
+            liveBufferLatencyChasing: true,
+            headers: mpInlineHeaders
           }
         );
         state.inline.mpegts.attachMediaElement(video);
@@ -7719,7 +7765,24 @@
     video.muted = false;
     video.volume = state.settings.volume;
     if (isHlsUrl(trailer.url) && !canUseNativeHls(video) && window.Hls && Hls.isSupported()) {
-      trailerState.hls = new Hls({ enableWorker: false });
+      trailerState.hls = new Hls({
+        enableWorker: false,
+        xhrSetup: function (xhr) {
+          try {
+            xhr.setRequestHeader("Accept", "*/*");
+          } catch (e) {}
+          var src = activeSource();
+          var ua = (src && src.userAgent) || DEFAULT_USER_AGENT;
+          if (ua) {
+            try {
+              xhr.setRequestHeader("User-Agent", ua);
+            } catch (e) {}
+            try {
+              xhr.setRequestHeader("X-Requested-With", ua);
+            } catch (e) {}
+          }
+        }
+      });
       trailerState.hls.loadSource(trailer.url);
       trailerState.hls.attachMedia(video);
       trailerState.hls.on(Hls.Events.MANIFEST_PARSED, function () {
@@ -8880,7 +8943,22 @@
           startLevel: 0,
           capLevelToPlayerSize: true,
           maxBufferLength: 18,
-          maxMaxBufferLength: 40
+          maxMaxBufferLength: 40,
+          xhrSetup: function (xhr) {
+            try {
+              xhr.setRequestHeader("Accept", "*/*");
+            } catch (e) {}
+            var src = activeSource();
+            var ua = (src && src.userAgent) || DEFAULT_USER_AGENT;
+            if (ua) {
+              try {
+                xhr.setRequestHeader("User-Agent", ua);
+              } catch (e) {}
+              try {
+                xhr.setRequestHeader("X-Requested-With", ua);
+              } catch (e) {}
+            }
+          }
         };
         if (cdnLoaderOv) {
           overlayHlsCfg.loader = cdnLoaderOv;
@@ -8929,12 +9007,17 @@
         canUseMpegTs()
       ) {
         // Raw MPEG-TS via mpegts.js — VOD MP4 must stay on the native video path.
+        var mpOverlayHeaders = {
+          "Accept": "*/*",
+          "User-Agent": (activeSource() && activeSource().userAgent) || DEFAULT_USER_AGENT
+        };
         state.overlay.mpegts = mpegts.createPlayer(
-          { type: "mpegts", url: currentUrl, isLive: record.view === "live" },
+          { type: "mpegts", url: currentUrl, isLive: record.view === "live", headers: mpOverlayHeaders },
           {
             enableWorker: false,
             lazyLoad: false,
-            liveBufferLatencyChasing: true
+            liveBufferLatencyChasing: true,
+            headers: mpOverlayHeaders
           }
         );
         state.overlay.mpegts.attachMediaElement(video);
